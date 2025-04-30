@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>oneshot3d.com</title>
+  <style>
+    body {
+      background: black;
+      color: white;
+      text-align: center;
+    }
+    div {
+      border: 2px solid white;
+      box-shadow: 5px 5px 20px;
+      margin: 20px auto;
+      padding: 20px;
+      width: 100%;
+    }
+    input {
+      background: black;
+      color: white;
+      border-radius: 10%;
+      border: 2px solid white;
+      box-shadow: 5px 5px 20px;
+      padding: 20px;
+      font-weight: bold;
+      font-family: times;
+      outline:none;
+    }
+  input:hover{
+    border:5px solid black;
+    outline:none;
+  }
+    button {
+      padding: 20px 70px;
+      background: white;
+      color: black;
+      font-weight: bold;
+      font-family: times;
+      border: 5px ridge gray;
+    }
+    button:active {
+      background: black;
+      color: white;
+      border: 5px ridge white;
+      box-shadow: 5px 5px 20px;
+    }
+    #d {
+      background: url('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcROJVmGVGOhNV9hsiIRftjwnOl02lpe1NnNUky4x4HuIPhtmOUKDcdD5q1q&s=10');
+      background-position: center;
+      background-size: contain;
+      background-repeat: no-repeat;
+      width: 100%;
+      height: 250px;
+      border: 5px double black;
+      cursor: pointer;
+    }
+    #threejsrenderer {
+      width: 100%;
+      height: 400px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>ONE_SHOT_3D</h1>
+
+  <div>
+    <h3>TEXT-TO-3D-MODEL</h3>
+    <input type="text" placeholder="ENTER NAME" />
+    <button>GENERATE MODEL</button>
+  </div>
+
+  <div>
+    <h3>IMAGE-TO-3D-MODEL</h3>
+    <input type="file" id="imageInput" accept="image/*" style="display:flex" />
+    <div id="d" onclick="document.getElementById('imageInput').click();"></div><br>
+    <button>GENERATE MODEL</button>
+  </div>
+
+  <div id="threejsrenderer"></div>
+  <button>DOWNLOAD GLB</button>
+
+  <!-- Three.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  
+  <script>
+    // Initialize Three.js scene
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / 400, 0.1, 1000);
+    camera.position.z = 5;
+
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, 400);
+    document.getElementById("threejsrenderer").appendChild(renderer.domElement);
+
+    // Geometry & Material for 3D objects
+    const geometry = new THREE.BoxGeometry();
+    const material = new THREE.MeshPhongMaterial({ color: 0xffffff }); // Correct syntax
+    const cube = new THREE.Mesh(geometry, material);
+    scene.add(cube);
+
+    // Add Light
+    const light = new THREE.PointLight(0xffffff, 1);
+    light.position.set(10, 10, 10);
+    scene.add(light);
+
+    // Animation Loop for 3D scene
+    function animate() {
+      requestAnimationFrame(animate);
+      cube.rotation.x += 0.01;
+      cube.rotation.y += 0.01;
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // TensorFlow.js - COCO-SSD Object Detection
+    let model;
+    cocoSsd.load().then((loadedModel) => {
+      model = loadedModel;
+      console.log("COCO-SSD model loaded");
+    });
+
+    // Handling the Image Upload
+    const imageInput = document.getElementById('imageInput');
+    const imageDiv = document.getElementById('d');
+    imageInput.addEventListener('change', async function () {
+      const file = imageInput.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = async function (e) {
+          imageDiv.style.backgroundImage = `url('${e.target.result}')`;
+
+          // Create Image Element for Detection
+          const img = new Image();
+          img.src = e.target.result;
+          img.onload = async function () {
+            // Create a temporary canvas to use for object detection
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            context.drawImage(img, 0, 0);
+
+            // Detect objects in the image
+            const predictions = await model.detect(canvas);
+            console.log(predictions);
+
+            // Generate 3D shapes based on detected objects
+            predictions.forEach((prediction) => {
+              create3DShape(prediction);
+            });
+          };
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // Create 3D Shapes for Detected Objects
+    function create3DShape(object) {
+      let shape;
+      switch (object.class) {
+        case 'person':
+          shape = new THREE.CylinderGeometry(1, 1, 3, 32);
+          break;
+        case 'bottle':
+          shape = new THREE.CylinderGeometry(0.5, 0.5, 2, 32);
+          break;
+        case 'cup':
+          shape = new THREE.ConeGeometry(1, 2, 32);
+          break;
+        default:
+          shape = new THREE.BoxGeometry(1, 1, 1);
+      }
+
+      const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
+      const mesh = new THREE.Mesh(shape, material);
+      mesh.position.set(Math.random() * 10 - 5, Math.random() * 5, Math.random() * 10 - 5);
+      scene.add(mesh);
+    }
+  </script>
+</body>
+</html>
